@@ -3,53 +3,81 @@
 #include <avr/power.h>
 #endif
 
-#define USE_EXTERNAL_MIDI_CLOCK false
+// Tempo of an internal clock
 #define INTERNAL_CLOCK_BPM 240L
+// Use external MIDI clock signal instead of an internal clock (not yet implemented)
+#define USE_EXTERNAL_MIDI_CLOCK false
 
+// If debug mode is on various info is printed to Serial port
 #define DEBUG_MODE true
 
+// If sketch is started with CALIBRATION_MODE set to true it will wais for two seconds, pweform calibration once, print matrixNoFieldVoltages array to Serial port and brick
 #define CALIBRATION_MODE false
+// Duration of calibration procedure
 #define CALIBRATION_DURATION 8000
 
+// Number of boards connected to the brain
 #define BOARD_COUNT 2
-#define COL_COUNT 8
-#define ROW_COUNT 5
+// Number of supported cube types
 #define CUBE_TYPE_COUNT 4
+// Number of columns in the board
+#define COL_COUNT 8
+// Number of row in the board
+#define ROW_COUNT 5
 
 // Analog output with no applied field, enable CALIBRATION_MODE and paste results here
 long matrixNoFieldVoltages[][ROW_COUNT][COL_COUNT] = {
   
-
-
   // Board 0
   {
-    {47466, 48093, 48438, 47587, 48515, 48312, 48032, 48811},
-    {48145, 47544, 48528, 48198, 47722, 47968, 48111, 48105},
-    {48038, 47577, 47662, 48669, 48462, 47964, 48579, 48712},
-    {48504, 48066, 47921, 48231, 48093, 48141, 46662, 48865},
-    {48118, 48148, 48384, 48349, 48445, 48204, 48781, 48342}
+    {45013, 45743, 46101, 45198, 46423, 45898, 45729, 46492},
+    {46000, 45199, 46200, 45900, 45215, 45800, 45900, 45526},
+    {45696, 45145, 45400, 46300, 46300, 45701, 46300, 46300},
+    {46193, 45900, 45477, 45999, 45765, 45740, 44500, 46498},
+    {45899, 45800, 46019, 46007, 45968, 46071, 46378, 46054}
   },
 
   // Board 1
   {
-    {46269, 46432, 45354, 46577, 45863, 45733, 45479, 45941},
-    {45341, 46346, 45714, 46160, 45892, 45726, 45314, 45809},
-    {45688, 45794, 45715, 46102, 45787, 45884, 46006, 45897},
-    {46319, 45878, 46520, 45918, 45836, 45418, 46207, 46735},
-    {45972, 45779, 46166, 46383, 45956, 45925, 46479, 45668}
+    {45099, 45300, 44141, 45542, 44700, 44597, 44400, 44799},
+    {44288, 45100, 44600, 45000, 44600, 44513, 44145, 44833},
+    {44400, 44673, 44598, 44900, 44693, 44571, 44889, 44772},
+    {45191, 44799, 45290, 44839, 44603, 44200, 45099, 45554},
+    {44775, 44567, 45102, 45300, 44798, 44727, 45302, 44673}
   }
 
+};
 
+// MIDI note mappings for different cube types
+const byte midiNotes[][CUBE_TYPE_COUNT][ROW_COUNT] = {
 
+  // Board 0
+  {
+    {0,  1,  2,  3,  4},
+    {5,  6,  7,  8,  9},
+    {10, 11, 12, 13, 14},
+    {15, 16, 17, 18, 19}
+  },
+
+  // Board 1
+  {
+    {20, 21, 22, 23, 24},
+    {25, 26, 27, 28, 29},
+    {30, 31, 32, 33, 34},
+    {35, 36, 37, 38, 39}
+  }
 
 };
+
+// Pins to which LED strip data channels of the boards are connected
+const int LED_STRIP_CONTROL_PINS[] = {22, 24};
 
 // Pins to which main multiplexer outputs of each board are connected
 const int BOARD_INPUT_PINS[] = {A0, A1, A2};
 
 // First dimention is board index, second is control line (0 = A, 1 = B, 2 = C)
 const int MAIN_MUX_CONTROL_PINS[][3] = {
-  {5, 6, 7}, // Board 0
+  {5,  6,  7}, // Board 0
   {11, 12, 13} // Board 1
 };
 
@@ -59,22 +87,22 @@ const int SUB_MUX_CONTROL_PINS[][3] = {
   {8, 9, 10} // Board 1
 };
 
-#define MUX_DATA_READ_TIMEOUT 0 // In milliseconds
-
+// Defines for multiplexer line names just for confort
 #define LINE_A 0
 #define LINE_B 1
 #define LINE_C 2
 
-
-
-#define MAX_VOLTAGE_SPIKE_DURATION 3 // In cycles
+// If Hall sensor voltage jumps by more than VOLTAGE_SPIKE_TRESHOLD and stays above for MAX_VOLTAGE_SPIKE_DURATION measuring cycles we no longer count it as a random spike and consider that this is a legit change in magnetic field
+#define MAX_VOLTAGE_SPIKE_DURATION 3
+// Amount (in voltage * 100L) the voltage has to jump for it to be considered a spike
 #define VOLTAGE_SPIKE_TRESHOLD 2000L
-#define NO_FIELD_VOLTAGE_OFFSET_TRESHOLD 2000L
+// Maximum number of samples from which the average voltage is calculated
 #define VOLTAGE_AVERAGING_SAMPLE_LIMIT 200
 
+// Number of LEDs in LED strip of each board
 const int LED_STRIP_PIXEL_COUNT = 48;
-const int LED_STRIP_CONTROL_PINS[] = {22, 24};
 
+// LED strip objects of each board
 Adafruit_NeoPixel ledStrips[] = {
 
   Adafruit_NeoPixel(LED_STRIP_PIXEL_COUNT, LED_STRIP_CONTROL_PINS[0], NEO_GRB + NEO_KHZ800),
@@ -82,6 +110,14 @@ Adafruit_NeoPixel ledStrips[] = {
 
 };
 
+// How often to update LED strip colors (in milliseconds)
+#define LED_STRIP_UPDATE_FREQUENCY 20
+// Last LED strip color update time
+unsigned long lastLEDStripUpdateTime;
+// LED strip iterator used for achieving rainbow cycle effect
+int ledStripIterator = 0;
+
+// FX strip is scraped for now, will need to sort this mess out later
 #define FX_STRIP_LED_FADE_SPEED 20
 #define FX_STRIP_SEGMENT_LED_WHEEL_DIFFERENCE 20
 
@@ -108,54 +144,30 @@ const bool MUX_CONTROL_SIGNALS[][3] = {
   {true,  true,  true}   // Channel 7
 };
 
+// Array for storing number of samples no field voltage of each Hall sensor is calculated from
 long matrixNoFieldVoltageSampleCount[BOARD_COUNT][ROW_COUNT][COL_COUNT];
 
+// Array for storing how many times the voltage spike was encoutered in a row
 int matrixVoltageSpikeCount[BOARD_COUNT][ROW_COUNT][COL_COUNT];
+// Array for storing number of samples averaged voltage of each Hall sensor is calculated from
 long matrixAverageVoltageSampleCount[BOARD_COUNT][ROW_COUNT][COL_COUNT];
+// Array that holds the averaged current voltages across the boards
 long matrixAverageVoltages[BOARD_COUNT][ROW_COUNT][COL_COUNT];
+// Array that is holding current state of the matrix (what cube types are placed where)
 int matrixStates[BOARD_COUNT][ROW_COUNT][COL_COUNT];
-const byte midiNotes[][CUBE_TYPE_COUNT][ROW_COUNT] = {
-
-  // Board 0
-  {
-    {0,  1,  2,  3,  4},
-    {5,  6,  7,  8,  9},
-    {10, 11, 12, 13, 14},
-    {15, 16, 17, 18, 19}
-  },
-
-  // Board 1
-  {
-    {20, 21, 22, 23, 24},
-    {25, 26, 27, 28, 29},
-    {30, 31, 32, 33, 34},
-    {35, 36, 37, 38, 39}
-  }
-
-};
-
-#define LED_STRIP_UPDATE_FREQUENCY 20 // In milliseconds
-long lastLEDStripUpdateTime;
-int ledStripIterator = 0;
-
-#define NOFIELD 511L    // Analog output with no applied field, calibrate this
 
 // This is used to convert the analog voltage reading to milliGauss
-//#define TOMILLIGAUSS 1953L  // For A1301: 2.5mV = 1Gauss, and 1024 analog steps = 5V, so 1 step = 1953mG
 #define TOMILLIGAUSS 3756L  // For A1302: 1.3mV = 1Gauss, and 1024 analog steps = 5V, so 1 step = 3756mG
 
-int _boardInputVal;
+// Index of currently active column
 int activeCol = 0;
+// Index of column that was active before current one
 int prevCol = 0;
 
-long lastTickTime;
-long tickDuration = 60L * 1000L / INTERNAL_CLOCK_BPM;
-
-bool tempIsOn = false;
-
-int pixelBatchSize = 3;
-
-byte colorWheelPosition = 0;
+// Time last tick was invoked
+unsigned long lastTickTime;
+// Duration of one tick
+unsigned long tickDuration = 60L * 1000L / INTERNAL_CLOCK_BPM;
 
 void setup() {
 
@@ -174,7 +186,9 @@ void setup() {
   if (CALIBRATION_MODE) {
     
     delay(2000);
-    performCalibration(); 
+    performCalibration();
+    printNoFieldVoltageArray();
+    while (1);
     
   }
 
@@ -259,6 +273,8 @@ void onTick() {
 
   activeCol = (activeCol + 1) % COL_COUNT;
 
+  processCalibrationButton();
+
 }
 
 void updateMatrixVoltageArray() {
@@ -275,9 +291,7 @@ void updateMatrixVoltageArray() {
 
         setActiveMainMuxRow(currentBoardNr, currentRow);
 
-        _boardInputVal = analogRead(BOARD_INPUT_PINS[currentBoardNr]);
-
-        long tempVoltage = _boardInputVal * 100L;
+        long tempVoltage = analogRead(BOARD_INPUT_PINS[currentBoardNr]) * 100L;
 
         if (abs(tempVoltage - matrixAverageVoltages[currentBoardNr][currentRow][currentCol]) > VOLTAGE_SPIKE_TRESHOLD)
         {
@@ -734,15 +748,20 @@ SERVICE FUNCTIONS
 
 ******************************************************************************/
 
+void processCalibrationButton() {
+
+  // digital read and launch calibration if needed
+
+}
+
 void performCalibration() {
 
-  Serial.print("Performing calibration");
+  if (DEBUG_MODE)
+    Serial.println("Performing calibration. Make sure no cubes are placed on any of the boards.");
 
   long startTime = millis();
 
-  long adjustmentMatrix[BOARD_COUNT][ROW_COUNT][COL_COUNT];
-
-  bool isFirstIteration = true;
+  long sampleCounts[BOARD_COUNT][ROW_COUNT][COL_COUNT];
 
   long iterationCounter = 1;
 
@@ -758,30 +777,50 @@ void performCalibration() {
 
           setActiveMainMuxRow(currentBoardNr, currentRow);
 
-          delay(MUX_DATA_READ_TIMEOUT);
+          long tempVoltage = (long)analogRead(BOARD_INPUT_PINS[currentBoardNr]) * 100L;
 
-          _boardInputVal = analogRead(BOARD_INPUT_PINS[currentBoardNr]);
+          if (iterationCounter == 1) {
 
-          if (isFirstIteration)
-            adjustmentMatrix[currentBoardNr][currentRow][currentCol] = _boardInputVal * 100L;
-          else
-            adjustmentMatrix[currentBoardNr][currentRow][currentCol] = (adjustmentMatrix[currentBoardNr][currentRow][currentCol] + (long)_boardInputVal * 100L) / 2L;
+            sampleCounts[currentBoardNr][currentRow][currentCol] = 0;
+            matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol] = tempVoltage;
+            
+          } else {
+
+            if (sampleCounts[currentBoardNr][currentRow][currentCol] < VOLTAGE_AVERAGING_SAMPLE_LIMIT)
+              sampleCounts[currentBoardNr][currentRow][currentCol]++;
+              
+            matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol] = (tempVoltage + matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol] * sampleCounts[currentBoardNr][currentRow][currentCol]) / (sampleCounts[currentBoardNr][currentRow][currentCol] + 1L);
+            
+          }
         }
 
       }
 
     }
 
-    isFirstIteration = false;
+    if (DEBUG_MODE) {
+      
+      Serial.print(".");
 
-    Serial.print(".");
+      if (iterationCounter % 40 == 0)
+        Serial.println();
 
-    if (iterationCounter % 40 == 0)
-      Serial.println();
+    }
 
     iterationCounter++;
 
   } while (millis() - startTime < CALIBRATION_DURATION);
+
+  if (DEBUG_MODE) {
+
+    Serial.println();
+    Serial.println("Calibration complete.");
+  
+  }
+  
+}
+
+void printNoFieldVoltageArray() {
 
   Serial.println();
   Serial.println();
@@ -794,12 +833,11 @@ void performCalibration() {
 
     for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
     
-
       Serial.print("    {");
 
       for (int currentCol = 0; currentCol < COL_COUNT; currentCol++) {
 
-        Serial.print(adjustmentMatrix[currentBoardNr][currentRow][currentCol]);
+        Serial.print(matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol]);
         if (currentCol < COL_COUNT - 1)
           Serial.print(", ");
 
@@ -814,9 +852,7 @@ void performCalibration() {
     Serial.println(currentBoardNr == BOARD_COUNT - 1 ? "" : ",");
 
   }
-
-  while (1);
-
+  
 }
 
 /******************************************************************************
