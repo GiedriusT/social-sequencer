@@ -11,17 +11,61 @@
 #define CALIBRATION_MODE false
 #define CALIBRATION_DURATION 8000
 
-#define MUX_DATA_READ_TIMEOUT 0 // In milliseconds
-
+#define BOARD_COUNT 2
+#define COL_COUNT 8
+#define ROW_COUNT 5
 #define CUBE_TYPE_COUNT 4
+
+// Analog output with no applied field, enable CALIBRATION_MODE and paste results here
+long matrixNoFieldVoltages[][ROW_COUNT][COL_COUNT] = {
+  
+
+
+  // Board 0
+  {
+    {47466, 48093, 48438, 47587, 48515, 48312, 48032, 48811},
+    {48145, 47544, 48528, 48198, 47722, 47968, 48111, 48105},
+    {48038, 47577, 47662, 48669, 48462, 47964, 48579, 48712},
+    {48504, 48066, 47921, 48231, 48093, 48141, 46662, 48865},
+    {48118, 48148, 48384, 48349, 48445, 48204, 48781, 48342}
+  },
+
+  // Board 1
+  {
+    {46269, 46432, 45354, 46577, 45863, 45733, 45479, 45941},
+    {45341, 46346, 45714, 46160, 45892, 45726, 45314, 45809},
+    {45688, 45794, 45715, 46102, 45787, 45884, 46006, 45897},
+    {46319, 45878, 46520, 45918, 45836, 45418, 46207, 46735},
+    {45972, 45779, 46166, 46383, 45956, 45925, 46479, 45668}
+  }
+
+
+
+
+};
+
+// Pins to which main multiplexer outputs of each board are connected
+const int BOARD_INPUT_PINS[] = {A0, A1, A2};
+
+// First dimention is board index, second is control line (0 = A, 1 = B, 2 = C)
+const int MAIN_MUX_CONTROL_PINS[][3] = {
+  {5, 6, 7}, // Board 0
+  {11, 12, 13} // Board 1
+};
+
+// First dimention is board index, second is control line (0 = A, 1 = B, 2 = C)
+const int SUB_MUX_CONTROL_PINS[][3] = {
+  {2, 3, 4}, // Board 0
+  {8, 9, 10} // Board 1
+};
+
+#define MUX_DATA_READ_TIMEOUT 0 // In milliseconds
 
 #define LINE_A 0
 #define LINE_B 1
 #define LINE_C 2
 
-#define BOARD_COUNT 2
-#define COL_COUNT 8
-#define ROW_COUNT 5
+
 
 #define MAX_VOLTAGE_SPIKE_DURATION 3 // In cycles
 #define VOLTAGE_SPIKE_TRESHOLD 2000L
@@ -46,29 +90,11 @@ Adafruit_NeoPixel ledStrips[] = {
 const int FX_STRIP_LED_COUNT = FX_STRIP_SEGMENT_COUNT * FX_STRIP_LEDS_PER_SEGMENT;
 
 int fxStripLEDBrightness[FX_STRIP_LED_COUNT];
-
 uint8_t fxStripLEDColors[FX_STRIP_LED_COUNT][3];
-
 long fxStripLEDLastChangeTime[FX_STRIP_LED_COUNT];
-
 int fxStripLastSegment = 0;
 
 Adafruit_NeoPixel strip = Adafruit_NeoPixel(FX_STRIP_LED_COUNT, 26, NEO_GRB + NEO_KHZ800);
-
-// Pins to which main multiplexer outputs of each board are connected
-const int BOARD_INPUT_PINS[] = {A0, A1, A2};
-
-// First dimention is board index, second is control line (0 = A, 1 = B, 2 = C)
-const int MAIN_MUX_CONTROL_PINS[][3] = {
-  {5, 6, 7}, // Board 0
-  {11, 12, 13} // Board 1
-};
-
-// First dimention is board index, second is control line (0 = A, 1 = B, 2 = C)
-const int SUB_MUX_CONTROL_PINS[][3] = {
-  {2, 3, 4}, // Board 0
-  {8, 9, 10} // Board 1
-};
 
 // Signal definitions for multiplexer control lines, first dimention is channel (0-7), second is a control line (0 = A, 1 = B, 2 = C)
 const bool MUX_CONTROL_SIGNALS[][3] = {
@@ -83,34 +109,12 @@ const bool MUX_CONTROL_SIGNALS[][3] = {
 };
 
 long matrixNoFieldVoltageSampleCount[BOARD_COUNT][ROW_COUNT][COL_COUNT];
-// Analog output with no applied field, enable CALIBRATION_MODE and paste results here
-long matrixNoFieldVoltages[][ROW_COUNT][COL_COUNT] = {
-  
-  // Board 0
-  {
-    {46348, 46963, 47533, 46574, 47767, 47168, 47010, 47898},
-    {47263, 46695, 47530, 47254, 46419, 47100, 47272, 46890},
-    {47131, 46416, 46853, 47706, 47746, 46932, 47717, 47681},
-    {47571, 47253, 46823, 47382, 47064, 47052, 45934, 47894},
-    {47400, 47105, 47485, 47405, 47264, 47433, 47800, 47412}
-  },
-
-  // Board 1
-  {
-    {48302, 48599, 47356, 48807, 47848, 47654, 47469, 47885},
-    {47433, 48384, 47748, 48109, 47776, 47691, 47208, 47957},
-    {47586, 47888, 47735, 48235, 47873, 47630, 48073, 47818},
-    {48433, 47850, 48452, 48125, 47707, 47291, 48266, 48740},
-    {48023, 47671, 48284, 48629, 47970, 47847, 48462, 47670}
-  }
-
-};
 
 int matrixVoltageSpikeCount[BOARD_COUNT][ROW_COUNT][COL_COUNT];
 long matrixAverageVoltageSampleCount[BOARD_COUNT][ROW_COUNT][COL_COUNT];
 long matrixAverageVoltages[BOARD_COUNT][ROW_COUNT][COL_COUNT];
 int matrixStates[BOARD_COUNT][ROW_COUNT][COL_COUNT];
-byte midiNotes[][CUBE_TYPE_COUNT][ROW_COUNT] = {
+const byte midiNotes[][CUBE_TYPE_COUNT][ROW_COUNT] = {
 
   // Board 0
   {
@@ -130,6 +134,10 @@ byte midiNotes[][CUBE_TYPE_COUNT][ROW_COUNT] = {
 
 };
 
+#define LED_STRIP_UPDATE_FREQUENCY 20 // In milliseconds
+long lastLEDStripUpdateTime;
+int ledStripIterator = 0;
+
 #define NOFIELD 511L    // Analog output with no applied field, calibrate this
 
 // This is used to convert the analog voltage reading to milliGauss
@@ -138,6 +146,7 @@ byte midiNotes[][CUBE_TYPE_COUNT][ROW_COUNT] = {
 
 int _boardInputVal;
 int activeCol = 0;
+int prevCol = 0;
 
 long lastTickTime;
 long tickDuration = 60L * 1000L / INTERNAL_CLOCK_BPM;
@@ -148,84 +157,175 @@ int pixelBatchSize = 3;
 
 byte colorWheelPosition = 0;
 
-void initSubMuxes(int boardIndex) {
+void setup() {
 
-  pinMode(SUB_MUX_CONTROL_PINS[boardIndex][LINE_A], OUTPUT);
-  pinMode(SUB_MUX_CONTROL_PINS[boardIndex][LINE_B], OUTPUT);
-  pinMode(SUB_MUX_CONTROL_PINS[boardIndex][LINE_C], OUTPUT);
+  Serial.begin(9600);
 
-  setActiveSubMuxCol(boardIndex, 0);
+  Serial1.begin(31250);
 
-}
+  lastTickTime = millis();
+  lastLEDStripUpdateTime = millis();
 
-void setSubMuxes(int boardIndex, bool lineA, bool lineB, bool lineC) {
+  initBoards();
+  initFXStrip();
 
-  digitalWrite(SUB_MUX_CONTROL_PINS[boardIndex][LINE_A], lineA ? HIGH : LOW);
-  digitalWrite(SUB_MUX_CONTROL_PINS[boardIndex][LINE_B], lineB ? HIGH : LOW);
-  digitalWrite(SUB_MUX_CONTROL_PINS[boardIndex][LINE_C], lineC ? HIGH : LOW);
+  initMatrixVoltageArray();
 
-}
-
-void setActiveSubMuxCol(int boardIndex, int colNr) {
-
-  setSubMuxes(boardIndex, MUX_CONTROL_SIGNALS[colNr][LINE_A], MUX_CONTROL_SIGNALS[colNr][LINE_B], MUX_CONTROL_SIGNALS[colNr][LINE_C]);
-
-}
-
-void initMainMuxes(int boardIndex) {
-
-  pinMode(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_A], OUTPUT);
-  pinMode(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_B], OUTPUT);
-  pinMode(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_C], OUTPUT);
-
-  setActiveMainMuxRow(boardIndex, 0);
-
-}
-
-void setMainMuxes(int boardIndex, bool lineA, bool lineB, bool lineC) {
-
-  digitalWrite(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_A], lineA ? HIGH : LOW);
-  digitalWrite(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_B], lineB ? HIGH : LOW);
-  digitalWrite(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_C], lineC ? HIGH : LOW);
-
-}
-
-void setActiveMainMuxRow(int boardIndex, int rowNr) {
-
-  setMainMuxes(boardIndex, MUX_CONTROL_SIGNALS[rowNr][LINE_A], MUX_CONTROL_SIGNALS[rowNr][LINE_B], MUX_CONTROL_SIGNALS[rowNr][LINE_C]);
-
-}
-
-long convertToGauss (int voltageOffset) {
-
-  return voltageOffset * TOMILLIGAUSS / 1000 / 100;
-
-}
-
-
-void setPixelBatchColor(int boardIndex, int batchIndex, uint32_t color) {
-
-  for (int i = batchIndex * 3; i < (batchIndex + 1) * 3; i++) {
-
-    ledStrips[boardIndex].setPixelColor(i, color);
-
-  }
-
-    for (int i = 47 - batchIndex * 3; i < 47 - (batchIndex + 1) * 3; i++) {
-
-    ledStrips[boardIndex].setPixelColor(i, color);
-
+  if (CALIBRATION_MODE) {
+    
+    delay(2000);
+    performCalibration(); 
+    
   }
 
 }
+
+void loop() {
+
+  updateMatrixVoltageArray();
+  processLEDStrips();
+
+  if (USE_EXTERNAL_MIDI_CLOCK)
+    processExternalMIDIClock();
+  else
+    processInternalClock();
+
+  // processFXStrip();
+  // strip.show();
+
+}
+
+/******************************************************************************
+
+CORE FUNCTIONS
+
+******************************************************************************/
 
 int getCubeTypeByGaussValue(long gauss) {
 
-  if (gauss > 120)
+  if (gauss > 100)
     return 3;
+  else if (gauss < -100)
+    return 2;
 
   return 0;
 
+}
+
+void onTick() {
+
+  bool noteBroadcasted = false;
+
+  for (int currentBoardNr = 0; currentBoardNr < BOARD_COUNT; currentBoardNr++) {
+
+    prevCol = getPreviousCol();
+
+    silencePreviousColNotes(currentBoardNr);
+
+    for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
+
+      long gaussValue = convertToGauss(matrixAverageVoltages[currentBoardNr][currentRow][activeCol] - matrixNoFieldVoltages[currentBoardNr][currentRow][activeCol]);
+      int cubeType = getCubeTypeByGaussValue(gaussValue);
+
+      if (cubeType != 0 && matrixStates[currentBoardNr][currentRow][activeCol] == 0) {
+
+        onNoteOn(currentBoardNr, currentRow, activeCol, cubeType);
+
+//        if (!noteBroadcasted) {
+//
+//          onTickFXStrip();
+//
+//          noteBroadcasted = true;
+//        
+//        }
+
+      }
+
+      if (DEBUG_MODE) {
+
+//        _debugPrintCRV(activeCol, currentRow, matrixAverageVoltages[currentBoardNr][currentRow][activeCol] - matrixNoFieldVoltages[currentBoardNr][currentRow][activeCol]);
+        _debugPrintCRV(activeCol, currentRow, gaussValue);
+
+      }
+
+    }
+
+    if (DEBUG_MODE)
+      Serial.println();
+
+  }
+
+  updateLEDStrips();
+
+  activeCol = (activeCol + 1) % COL_COUNT;
+
+}
+
+void updateMatrixVoltageArray() {
+
+  for (int currentBoardNr = 0; currentBoardNr < BOARD_COUNT; currentBoardNr++) {
+
+    for (int currentCol = 0; currentCol < COL_COUNT; currentCol++) {
+
+      setActiveSubMuxCol(currentBoardNr, currentCol);
+
+      for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
+
+        bool doIgnoreVoltage = false;
+
+        setActiveMainMuxRow(currentBoardNr, currentRow);
+
+        _boardInputVal = analogRead(BOARD_INPUT_PINS[currentBoardNr]);
+
+        long tempVoltage = _boardInputVal * 100L;
+
+        if (abs(tempVoltage - matrixAverageVoltages[currentBoardNr][currentRow][currentCol]) > VOLTAGE_SPIKE_TRESHOLD)
+        {
+          matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol]++;
+
+          if (matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] > MAX_VOLTAGE_SPIKE_DURATION) {
+
+            matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] = 0;
+            matrixAverageVoltages[currentBoardNr][currentRow][currentCol] = tempVoltage;
+            
+            matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] = 0;
+            
+          } else {
+
+            doIgnoreVoltage = true;
+            
+          }
+          
+        } else {
+
+          matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] = 0;
+
+//          if (abs(tempVoltage - matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol]) < VOLTAGE_SPIKE_TRESHOLD) {
+//
+//            if (matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol] < VOLTAGE_AVERAGING_SAMPLE_LIMIT)
+//              matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol]++;
+//              
+//            matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol] = (tempVoltage + matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol] * matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol]) / (matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol] + 1L);
+//            
+//          }
+          
+        }
+
+        if (!doIgnoreVoltage) {
+
+          if (matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] < VOLTAGE_AVERAGING_SAMPLE_LIMIT)
+            matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol]++;
+          
+          matrixAverageVoltages[currentBoardNr][currentRow][currentCol] = (tempVoltage + matrixAverageVoltages[currentBoardNr][currentRow][currentCol] * matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol]) / (matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] + 1);
+          
+        }
+
+      }
+
+    }
+
+  }
+  
 }
 
 void onNoteOn(int boardIndex, int row, int col, int cubeType) {
@@ -236,29 +336,14 @@ void onNoteOn(int boardIndex, int row, int col, int cubeType) {
 
 }
 
-int getPreviousCol() {
-
-  int previousCol = activeCol - 1;
-
-  if (previousCol < 0)
-    previousCol = COL_COUNT - 1;
-
-  return previousCol;
-
-}
-
 void silencePreviousColNotes(int boardIndex) {
-
-  int previousCol = getPreviousCol();
-
-  byte tempNotes[] = {0x00, 0x01, 0x02, 0x03, 0x04}; 
 
   for (int row = 0; row < ROW_COUNT; row++) {
 
-    if (matrixStates[boardIndex][row][previousCol] > 0) {
+    if (matrixStates[boardIndex][row][prevCol] > 0) {
 
-      noteOff(1, tempNotes[row]);
-      matrixStates[boardIndex][row][previousCol] = 0;
+      noteOff(1, midiNotes[boardIndex][matrixStates[boardIndex][row][prevCol] - 1][row]);
+      matrixStates[boardIndex][row][prevCol] = 0;
 
     }
 
@@ -266,108 +351,29 @@ void silencePreviousColNotes(int boardIndex) {
 
 }
 
-void onTick() {
-
-  bool noteBroadcasted = false;
-
-  for (int currentBoardNr = 0; currentBoardNr < BOARD_COUNT; currentBoardNr++) {
-
-    // setActiveSubMuxCol(currentBoardNr, activeCol);
-
-    int prevCol = activeCol - 1;
-    if (prevCol < 0)
-      prevCol = COL_COUNT - 1;
-
-    setPixelBatchColor(currentBoardNr, prevCol, ledStrips[currentBoardNr].Color(0, 0, 0));
-
-//    setPixelBatchColor(currentBoardNr, activeCol, Wheel(colorWheelPosition));
-    setPixelBatchColor(currentBoardNr, activeCol, ledStrips[currentBoardNr].Color(255, 255, 255));
-    ledStrips[currentBoardNr].show();
-    colorWheelPosition = colorWheelPosition + 5 % 255;
-
-    silencePreviousColNotes(currentBoardNr);
-//    delay(5);
-
-    //    Serial.print("Col #");
-    //    Serial.print(activeCol);
-    //    Serial.print(" - ");
-
-    for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
-
-//      setActiveMainMuxRow(currentBoardNr, currentRow);
-//
-//      if (MUX_DATA_READ_TIMEOUT > 0)
-//        delay(MUX_DATA_READ_TIMEOUT);
-//
-//      _boardInputVal = analogRead(BOARD_INPUT_PINS[currentBoardNr]);
-
-      // Serial.println(_boardInputVal);
-
-      long gaussValue = convertToGauss(matrixAverageVoltages[currentBoardNr][currentRow][activeCol] - matrixNoFieldVoltages[currentBoardNr][currentRow][activeCol]);
-      int cubeType = getCubeTypeByGaussValue(gaussValue);
-
-//      if (_boardInputVal == HIGH)
-//        cubeType = 0;
-//      else
-//        cubeType = 1;
-
-      if (cubeType != 0 && matrixStates[currentBoardNr][currentRow][activeCol] == 0) {
-
-        onNoteOn(currentBoardNr, currentRow, activeCol, cubeType);
-
-        if (!noteBroadcasted) {
-
-          onTickFXStrip();
-
-          noteBroadcasted = true;
-        
-        }
-
-      }
-
-      if (DEBUG_MODE) {
-
-        Serial.print(activeCol);
-        Serial.print(",");
-        Serial.print(currentRow);
-        Serial.print(": ");
-        
-//        if (cubeType > 0)
-//          Serial.print(cubeType);
-//        else
-//          Serial.print(" ");
-
-        long theValue = matrixAverageVoltages[currentBoardNr][currentRow][activeCol] - matrixNoFieldVoltages[currentBoardNr][currentRow][activeCol];
-//        theValue = matrixNoFieldVoltages[currentBoardNr][currentRow][activeCol];
-        theValue = gaussValue;
-
-        Serial.print(theValue == 0 ? " " : (theValue > 0 ? "+" : ""));
-        Serial.print(theValue);
-        Serial.print(abs(theValue) < 10 ? " " : "");
-        Serial.print(abs(theValue) < 100 ? " " : "");
-        Serial.print(abs(theValue) < 1000 ? " " : "");
-        Serial.print(abs(theValue) < 10000 ? " " : "");
-        Serial.print(" ");
-
-      } else {
+void processExternalMIDIClock() {
 
 
 
-      }
+}
 
-    }
+void processInternalClock() {
 
-    if (DEBUG_MODE) {
-      
-      Serial.println();
-      
-    }
+  if (millis() - lastTickTime > tickDuration) {
+
+    onTick();
+
+    lastTickTime = lastTickTime + tickDuration;
 
   }
 
-  activeCol = (activeCol + 1) % COL_COUNT;
-
 }
+
+/******************************************************************************
+
+INITIALIZATION FUNCTIONS
+
+******************************************************************************/
 
 void initMatrixStates(int boardIndex) {
 
@@ -395,6 +401,90 @@ void initBoards() {
   }
 
 }
+
+void initMatrixVoltageArray() {
+
+  for (int currentBoardNr = 0; currentBoardNr < BOARD_COUNT; currentBoardNr++) {
+
+    for (int currentCol = 0; currentCol < COL_COUNT; currentCol++) {
+
+      for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
+
+        matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] = 0;
+        matrixAverageVoltages[currentBoardNr][currentRow][currentCol] = matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol];
+        
+        matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] = 0;
+
+      }
+
+    }
+
+  }
+  
+}
+
+/******************************************************************************
+
+LED STRIP FUNCTIONS
+
+******************************************************************************/
+
+void setPixelBatchColor(int boardIndex, int batchIndex, uint32_t color) {
+
+  for (int i = batchIndex * 3; i < (batchIndex + 1) * 3; i++) {
+
+    ledStrips[boardIndex].setPixelColor(i, color);
+
+  }
+
+    for (int i = 47 - batchIndex * 3; i < 47 - (batchIndex + 1) * 3; i++) {
+
+    ledStrips[boardIndex].setPixelColor(i, color);
+
+  }
+
+}
+
+void updateLEDStrips() {
+
+  for (int stripIndex = 0; stripIndex < BOARD_COUNT; stripIndex++) {
+
+    for (int i=0; i< ledStrips[stripIndex].numPixels(); i++) {
+      
+      ledStrips[stripIndex].setPixelColor(i, Wheel(((i * 256 / ledStrips[stripIndex].numPixels()) + ledStripIterator) & 255));
+    
+    }
+
+    // setPixelBatchColor(stripIndex, prevCol, ledStrips[stripIndex].Color(0, 0, 0));
+    setPixelBatchColor(stripIndex, activeCol, ledStrips[stripIndex].Color(255, 255, 255));
+  }
+
+  for (int stripIndex = 0; stripIndex < BOARD_COUNT; stripIndex++) {
+    
+    ledStrips[stripIndex].show();
+  
+  }
+  
+}
+
+void processLEDStrips() {
+
+  if (millis() - lastLEDStripUpdateTime >= LED_STRIP_UPDATE_FREQUENCY) {
+
+    ledStripIterator = ledStripIterator + 1 % (255 * 5);
+    updateLEDStrips();
+
+    lastLEDStripUpdateTime = millis();
+    
+  }
+  
+}
+
+/******************************************************************************
+
+FX STRIP FUNCTIONS
+
+******************************************************************************/
 
 void initFXStrip() {
 
@@ -486,66 +576,163 @@ void processFXStrip() {
   
 }
 
-void initMatrixVoltageArray() {
+/******************************************************************************
 
-  for (int currentBoardNr = 0; currentBoardNr < BOARD_COUNT; currentBoardNr++) {
+MUX CONTROL FUNCTIONS
 
-    for (int currentCol = 0; currentCol < COL_COUNT; currentCol++) {
+******************************************************************************/
 
-      for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
+void initSubMuxes(int boardIndex) {
 
-        matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] = 0;
-        matrixAverageVoltages[currentBoardNr][currentRow][currentCol] = matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol];
-        
-        matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] = 0;
+  pinMode(SUB_MUX_CONTROL_PINS[boardIndex][LINE_A], OUTPUT);
+  pinMode(SUB_MUX_CONTROL_PINS[boardIndex][LINE_B], OUTPUT);
+  pinMode(SUB_MUX_CONTROL_PINS[boardIndex][LINE_C], OUTPUT);
 
-      }
+  setActiveSubMuxCol(boardIndex, 0);
 
-    }
+}
 
+void setSubMuxes(int boardIndex, bool lineA, bool lineB, bool lineC) {
+
+  digitalWrite(SUB_MUX_CONTROL_PINS[boardIndex][LINE_A], lineA ? HIGH : LOW);
+  digitalWrite(SUB_MUX_CONTROL_PINS[boardIndex][LINE_B], lineB ? HIGH : LOW);
+  digitalWrite(SUB_MUX_CONTROL_PINS[boardIndex][LINE_C], lineC ? HIGH : LOW);
+
+}
+
+void setActiveSubMuxCol(int boardIndex, int colNr) {
+
+  setSubMuxes(boardIndex, MUX_CONTROL_SIGNALS[colNr][LINE_A], MUX_CONTROL_SIGNALS[colNr][LINE_B], MUX_CONTROL_SIGNALS[colNr][LINE_C]);
+
+}
+
+void initMainMuxes(int boardIndex) {
+
+  pinMode(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_A], OUTPUT);
+  pinMode(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_B], OUTPUT);
+  pinMode(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_C], OUTPUT);
+
+  setActiveMainMuxRow(boardIndex, 0);
+
+}
+
+void setMainMuxes(int boardIndex, bool lineA, bool lineB, bool lineC) {
+
+  digitalWrite(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_A], lineA ? HIGH : LOW);
+  digitalWrite(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_B], lineB ? HIGH : LOW);
+  digitalWrite(MAIN_MUX_CONTROL_PINS[boardIndex][LINE_C], lineC ? HIGH : LOW);
+
+}
+
+void setActiveMainMuxRow(int boardIndex, int rowNr) {
+
+  setMainMuxes(boardIndex, MUX_CONTROL_SIGNALS[rowNr][LINE_A], MUX_CONTROL_SIGNALS[rowNr][LINE_B], MUX_CONTROL_SIGNALS[rowNr][LINE_C]);
+
+}
+
+/******************************************************************************
+
+HELPER FUNCTIONS
+
+******************************************************************************/
+
+int getPreviousCol() {
+
+  int previousCol = activeCol - 1;
+
+  if (previousCol < 0)
+    previousCol = COL_COUNT - 1;
+
+  return previousCol;
+
+}
+
+long convertToGauss (int voltageOffset) {
+
+  return voltageOffset * TOMILLIGAUSS / 1000 / 100;
+
+}
+
+uint32_t Wheel(byte WheelPos) {
+
+  WheelPos = 255 - WheelPos;
+
+  if (WheelPos < 85) {
+    return ledStrips[0].Color(255 - WheelPos * 3, 0, WheelPos * 3);
+  }
+
+  if (WheelPos < 170) {
+    WheelPos -= 85;
+    return ledStrips[0].Color(0, WheelPos * 3, 255 - WheelPos * 3);
+  }
+
+  WheelPos -= 170;
+
+  return ledStrips[0].Color(WheelPos * 3, 255 - WheelPos * 3, 0);
+}
+
+/******************************************************************************
+
+MIDI FUNCTIONS
+
+******************************************************************************/
+
+// Send a MIDI note on message
+void noteOn(byte channel, byte pitch, byte velocity) {
+  
+  // 0x90 is the first of 16 note on channels. Subtract one to go from MIDI's 1-16 channels to 0-15
+  channel += 0x90 - 1;
+
+  // Ensure we're between channels 1 and 16 for a note on message
+  if (channel >= 0x90 && channel <= 0x9F) {
+
+    Serial1.write(channel);
+    Serial1.write(pitch);
+    Serial1.write(velocity);
+    
   }
   
 }
 
-void setup() {
+// Send a MIDI note off message
+void noteOff(byte channel, byte pitch) {
+  
+  // 0x80 is the first of 16 note off channels. Subtract one to go from MIDI's 1-16 channels to 0-15
+  channel += 0x80 - 1;
 
-  Serial.begin(9600);
-
-  Serial1.begin(31250);
-
-  lastTickTime = millis();
-
-  initBoards();
-  initFXStrip();
-
-  initMatrixVoltageArray();
-
-  if (CALIBRATION_MODE) {
+  // Ensure we're between channels 1 and 16 for a note off message
+  if (channel >= 0x80 && channel <= 0x8F) {
     
-    delay(2000);
-    performCalibration(); 
+    Serial1.write(channel);
+    Serial1.write(pitch);
+    Serial1.write((byte)0x00);
     
   }
-
+  
 }
 
-void processExternalMIDIClock() {
+// Send a MIDI control change message
+void controlChange(byte channel, byte control, byte value) {
+  
+  // 0xB0 is the first of 16 control change channels. Subtract one to go from MIDI's 1-16 channels to 0-15
+  channel += 0xB0 - 1;
 
-
-
-}
-
-void processInternalClock() {
-
-  if (millis() - lastTickTime > tickDuration) {
-
-    onTick();
-
-    lastTickTime = lastTickTime + tickDuration;
-
+  // Ensure we're between channels 1 and 16 for a CC message
+  if (channel >= 0xB0 && channel <= 0xBF) {
+    
+    Serial1.write(channel);
+    Serial1.write(control);
+    Serial1.write(value);
+    
   }
-
+  
 }
+
+/******************************************************************************
+
+SERVICE FUNCTIONS
+
+******************************************************************************/
 
 void performCalibration() {
 
@@ -632,169 +819,30 @@ void performCalibration() {
 
 }
 
-// ======================================================================
-// ======================================================================
-// ======================================================================
-// ======================================================================
-// ======================================================================
-// ======================================================================
+/******************************************************************************
 
-void updateMatrixVoltageArray() {
+DEBUG FUNCTIONS
 
-  for (int currentBoardNr = 0; currentBoardNr < BOARD_COUNT; currentBoardNr++) {
+******************************************************************************/
 
-    for (int currentCol = 0; currentCol < COL_COUNT; currentCol++) {
+void _debugPrintCRV(int col, int row, long theValue) {
 
-      setActiveSubMuxCol(currentBoardNr, currentCol);
+        Serial.print(col);
+        Serial.print(",");
+        Serial.print(row);
+        Serial.print(": ");
+        
+//        if (cubeType > 0)
+//          Serial.print(cubeType);
+//        else
+//          Serial.print(" ");
 
-      for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
-
-        bool doIgnoreVoltage = false;
-
-        setActiveMainMuxRow(currentBoardNr, currentRow);
-
-        _boardInputVal = analogRead(BOARD_INPUT_PINS[currentBoardNr]);
-
-        long tempVoltage = _boardInputVal * 100L;
-
-        if (abs(tempVoltage - matrixAverageVoltages[currentBoardNr][currentRow][currentCol]) > VOLTAGE_SPIKE_TRESHOLD)
-        {
-          matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol]++;
-
-          if (matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] > MAX_VOLTAGE_SPIKE_DURATION) {
-
-            matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] = 0;
-            matrixAverageVoltages[currentBoardNr][currentRow][currentCol] = tempVoltage;
-            
-            matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] = 0;
-            
-          } else {
-
-            doIgnoreVoltage = true;
-            
-          }
-          
-        } else {
-
-          matrixVoltageSpikeCount[currentBoardNr][currentRow][currentCol] = 0;
-
-          if (abs(tempVoltage - matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol]) < VOLTAGE_SPIKE_TRESHOLD) {
-
-            if (matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol] < VOLTAGE_AVERAGING_SAMPLE_LIMIT)
-              matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol]++;
-              
-            matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol] = (tempVoltage + matrixNoFieldVoltages[currentBoardNr][currentRow][currentCol] * matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol]) / (matrixNoFieldVoltageSampleCount[currentBoardNr][currentRow][currentCol] + 1L);
-            
-          }
-          
-        }
-
-        if (!doIgnoreVoltage) {
-
-          if (matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] < VOLTAGE_AVERAGING_SAMPLE_LIMIT)
-            matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol]++;
-          
-          matrixAverageVoltages[currentBoardNr][currentRow][currentCol] = (tempVoltage + matrixAverageVoltages[currentBoardNr][currentRow][currentCol] * matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol]) / (matrixAverageVoltageSampleCount[currentBoardNr][currentRow][currentCol] + 1);
-          
-        }
-
-      }
-
-    }
-
-  }
+        Serial.print(theValue == 0 ? " " : (theValue > 0 ? "+" : ""));
+        Serial.print(theValue);
+        Serial.print(abs(theValue) < 10 ? " " : "");
+        Serial.print(abs(theValue) < 100 ? " " : "");
+        Serial.print(abs(theValue) < 1000 ? " " : "");
+        Serial.print(abs(theValue) < 10000 ? " " : "");
+        Serial.print(" ");
   
-}
-
-void loop() {
-
-  updateMatrixVoltageArray();
-
-  if (USE_EXTERNAL_MIDI_CLOCK)
-    processExternalMIDIClock();
-  else
-    processInternalClock();
-
-  // processFXStrip();
-
-  // strip.show();
-
-}
-
-uint32_t Wheel(byte WheelPos) {
-
-  WheelPos = 255 - WheelPos;
-
-  if (WheelPos < 85) {
-    return ledStrips[0].Color(255 - WheelPos * 3, 0, WheelPos * 3);
-  }
-
-  if (WheelPos < 170) {
-    WheelPos -= 85;
-    return ledStrips[0].Color(0, WheelPos * 3, 255 - WheelPos * 3);
-  }
-
-  WheelPos -= 170;
-
-  return ledStrips[0].Color(WheelPos * 3, 255 - WheelPos * 3, 0);
-}
-
-// Send a MIDI note on message
-void noteOn(byte channel, byte pitch, byte velocity)
-{
-  // 0x90 is the first of 16 note on channels. Subtract one to go from MIDI's 1-16 channels to 0-15
-  channel += 0x90 - 1;
-
-  // Ensure we're between channels 1 and 16 for a note on message
-  if (channel >= 0x90 && channel <= 0x9F)
-  {
-    if (DEBUG_MODE) {
-
-//      Serial.print("Note ON: ");
-//      Serial.println(pitch);
-
-    }
-
-    Serial1.write(channel);
-    Serial1.write(pitch);
-    Serial1.write(velocity);
-    
-  }
-}
-
-// Send a MIDI note off message
-void noteOff(byte channel, byte pitch)
-{
-  // 0x80 is the first of 16 note off channels. Subtract one to go from MIDI's 1-16 channels to 0-15
-  channel += 0x80 - 1;
-
-  // Ensure we're between channels 1 and 16 for a note off message
-  if (channel >= 0x80 && channel <= 0x8F)
-  {
-    if (DEBUG_MODE) {
-
-//      Serial.print("Note OFF: ");
-//      Serial.println(pitch);
-
-    }
-
-    Serial1.write(channel);
-    Serial1.write(pitch);
-    Serial1.write((byte)0x00);
-  }
-}
-
-// Send a MIDI control change message
-void controlChange(byte channel, byte control, byte value)
-{
-  // 0xB0 is the first of 16 control change channels. Subtract one to go from MIDI's 1-16 channels to 0-15
-  channel += 0xB0 - 1;
-
-  // Ensure we're between channels 1 and 16 for a CC message
-  if (channel >= 0xB0 && channel <= 0xBF)
-  {
-    Serial1.write(channel);
-    Serial1.write(control);
-    Serial1.write(value);
-  }
 }
