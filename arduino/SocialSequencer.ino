@@ -32,8 +32,25 @@ Adafruit_NeoPixel ledStrips[] = {
 
 };
 
+#define FX_STRIP_LED_FADE_SPEED 20
+#define FX_STRIP_SEGMENT_LED_WHEEL_DIFFERENCE 20
+
+#define FX_STRIP_SEGMENT_COUNT 4
+#define FX_STRIP_LEDS_PER_SEGMENT 3
+const int FX_STRIP_LED_COUNT = FX_STRIP_SEGMENT_COUNT * FX_STRIP_LEDS_PER_SEGMENT;
+
+int fxStripLEDBrightness[FX_STRIP_LED_COUNT];
+
+uint8_t fxStripLEDColors[FX_STRIP_LED_COUNT][3];
+
+long fxStripLEDLastChangeTime[FX_STRIP_LED_COUNT];
+
+int fxStripLastSegment = 0;
+
+Adafruit_NeoPixel strip = Adafruit_NeoPixel(FX_STRIP_LED_COUNT, 10, NEO_GRB + NEO_KHZ800);
+
 // Pins to which main multiplexer outputs of each board are connected
-const int BOARD_INPUT_PINS[] = {9, 10, 11};
+const int BOARD_INPUT_PINS[] = {A0, A1, A2};
 
 // First dimention is board index, second is control line (0 = A, 1 = B, 2 = C)
 const int MAIN_MUX_CONTROL_PINS[][3] = {
@@ -59,11 +76,14 @@ const bool MUX_CONTROL_SIGNALS[][3] = {
 
 // Analog output with no applied field, enable CALIBRATION_MODE and paste results here
 const long NO_FIELD_ADJUSTMENT_MATRIX[][ROW_COUNT][COL_COUNT] = {
-
+  
   // Board 0
   {
-    {514, 516},
-    {518, 520}
+    {517, 524, 529, 516, 532, 526, 523, 531},
+    {526, 517, 528, 525, 519, 524, 525, 520},
+    {524, 516, 519, 532, 531, 524, 530, 530},
+    {529, 525, 520, 527, 524, 523, 518, 533},
+    {527, 524, 528, 527, 526, 528, 531, 527}
   }
 
 };
@@ -169,7 +189,7 @@ void setPixelBatchColor(int boardIndex, int batchIndex, uint32_t color) {
 
 int getCubeTypeByGaussValue(long gauss) {
 
-  if (abs(gauss) > 100)
+  if (gauss > 120)
     return 1;
 
   return 0;
@@ -218,6 +238,8 @@ void silencePreviousColNotes(int boardIndex) {
 
 void onTick() {
 
+  bool noteBroadcasted = false;
+
   for (int currentBoardNr = 0; currentBoardNr < BOARD_COUNT; currentBoardNr++) {
 
     setActiveSubMuxCol(currentBoardNr, activeCol);
@@ -245,21 +267,29 @@ void onTick() {
 
       delay(MUX_DATA_READ_TIMEOUT);
 
-      _boardInputVal = digitalRead(BOARD_INPUT_PINS[currentBoardNr]);
+      _boardInputVal = analogRead(BOARD_INPUT_PINS[currentBoardNr]);
 
       // Serial.println(_boardInputVal);
 
-      long gaussValue = convertToGauss(_boardInputVal, NO_FIELD_ADJUSTMENT_MATRIX[currentBoardNr][activeCol][currentRow]);
+      long gaussValue = convertToGauss(_boardInputVal, NO_FIELD_ADJUSTMENT_MATRIX[currentBoardNr][currentRow][activeCol]);
       int cubeType = getCubeTypeByGaussValue(gaussValue);
 
-      if (_boardInputVal == HIGH)
-        cubeType = 0;
-      else
-        cubeType = 1;
+//      if (_boardInputVal == HIGH)
+//        cubeType = 0;
+//      else
+//        cubeType = 1;
 
       if (cubeType != 0 && matrixStates[currentBoardNr][currentRow][activeCol] == 0) {
 
         onNoteOn(currentBoardNr, currentRow, activeCol, cubeType);
+
+        if (!noteBroadcasted) {
+
+          onTickFXStrip();
+
+          noteBroadcasted = true;
+        
+        }
 
       }
 
@@ -269,7 +299,10 @@ void onTick() {
         Serial.print(",");
         Serial.print(currentRow);
         Serial.print(": ");
-        Serial.print(cubeType);
+        if (cubeType > 0)
+          Serial.print(cubeType);
+        else
+          Serial.print(" ");
 //        Serial.print(gaussValue == 0 ? " " : (gaussValue > 0 ? "+" : ""));
 //        Serial.print(gaussValue);
 //        Serial.print(abs(gaussValue) < 10 ? " " : "");
@@ -325,18 +358,109 @@ void initBoards() {
 
 }
 
+void initFXStrip() {
+
+  for (int i=0; i<FX_STRIP_LED_COUNT; i++) {
+
+    fxStripLEDBrightness[i] = 0;
+    fxStripLEDColors[i][0] = 0;
+    fxStripLEDColors[i][1] = 0;
+    fxStripLEDColors[i][2] = 0;
+    fxStripLEDLastChangeTime[i] = 0;
+    
+  }
+
+  strip.begin();
+  strip.show(); // Initialize all pixels to 'off'
+  
+}
+
+uint8_t splitColor ( uint32_t c, char value )
+{
+  switch ( value ) {
+    case 'r': return (uint8_t)(c >> 16);
+    case 'g': return (uint8_t)(c >>  8);
+    case 'b': return (uint8_t)(c >>  0);
+    default:  return 0;
+  }
+}
+
+void lightUpFXStripSegment(int segmentIndex, byte wheelPosition) {
+
+     for(uint8_t j=FX_STRIP_LEDS_PER_SEGMENT * segmentIndex; j < FX_STRIP_LEDS_PER_SEGMENT * (segmentIndex + 1); j++) {
+
+        uint32_t newColor = Wheel((wheelPosition + (FX_STRIP_SEGMENT_LED_WHEEL_DIFFERENCE * j - FX_STRIP_LEDS_PER_SEGMENT * segmentIndex)) % 255);
+
+        fxStripLEDBrightness[j] = 255;
+        fxStripLEDColors[j][0] = splitColor(newColor, 'r');
+        fxStripLEDColors[j][1] = splitColor(newColor, 'g');
+        fxStripLEDColors[j][2] = splitColor(newColor, 'b');
+        fxStripLEDLastChangeTime[j] = millis();
+
+        // strip.setPixelColor(j, newColor);
+
+
+      
+        strip.setPixelColor(j, fxStripLEDColors[j][0], fxStripLEDColors[j][1], fxStripLEDColors[j][2]);
+        
+     }
+  
+}
+
+void onTickFXStrip() {
+
+  int randomSegmentIndex = random(0, FX_STRIP_SEGMENT_COUNT);
+
+  if (randomSegmentIndex == fxStripLastSegment) {
+
+    randomSegmentIndex = (randomSegmentIndex + 1) % FX_STRIP_SEGMENT_COUNT;
+    
+  }
+  
+  byte randomWheelPosition = random(0, 255);
+
+  lightUpFXStripSegment(randomSegmentIndex, randomWheelPosition);
+
+  fxStripLastSegment = randomSegmentIndex;
+  
+}
+
+void processFXStrip() {
+
+  for (int i=0; i<FX_STRIP_LED_COUNT; i++) {
+
+    if (fxStripLEDBrightness[i] > 0) {
+
+      if (1) {
+
+        fxStripLEDBrightness[i] -= FX_STRIP_LED_FADE_SPEED;
+        if (fxStripLEDBrightness[i] < 0)
+          fxStripLEDBrightness[i] = 0;
+        fxStripLEDLastChangeTime[i] = millis();
+
+        strip.setPixelColor(i, (int)((float)fxStripLEDColors[i][0] / 255 * fxStripLEDBrightness[i]), (int)((float)fxStripLEDColors[i][1] / 255 * fxStripLEDBrightness[i]), (int)((float)fxStripLEDColors[i][2] / 255 * fxStripLEDBrightness[i]));
+        
+      }
+    
+    }
+    
+  }
+  
+}
+
 void setup() {
 
   Serial.begin(9600);
+
+  Serial1.begin(31250);
 
   if (CALIBRATION_MODE)
     delay(2000);
 
   lastTickTime = millis();
 
-  pinMode(9, INPUT);
-
   initBoards();
+  initFXStrip();
 
 }
 
@@ -415,20 +539,21 @@ void performCalibration() {
     Serial.println("  // Board 0");
     Serial.println("  {");
 
-    for (int currentCol = 0; currentCol < COL_COUNT; currentCol++) {
+    for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
+    
 
       Serial.print("    {");
 
-      for (int currentRow = 0; currentRow < ROW_COUNT; currentRow++) {
+      for (int currentCol = 0; currentCol < COL_COUNT; currentCol++) {
 
         Serial.print(adjustmentMatrix[currentBoardNr][currentRow][currentCol]);
-        if (currentRow < ROW_COUNT - 1)
+        if (currentCol < COL_COUNT - 1)
           Serial.print(", ");
 
       }
 
       Serial.print("}");
-      Serial.println(currentCol == COL_COUNT - 1 ? "" : ",");
+      Serial.println(currentRow == ROW_COUNT - 1 ? "" : ",");
 
     }
 
@@ -449,6 +574,10 @@ void loop() {
       processExternalMIDIClock();
     else
       processInternalClock();
+
+    processFXStrip();
+
+    strip.show();
 
   } else {
 
@@ -490,13 +619,12 @@ void noteOn(byte channel, byte pitch, byte velocity)
 //      Serial.print("Note ON: ");
 //      Serial.println(pitch);
 
-    } else {
-
-      Serial.write(channel);
-      Serial.write(pitch);
-      Serial.write(velocity);
-
     }
+
+    Serial1.write(channel);
+    Serial1.write(pitch);
+    Serial1.write(velocity);
+    
   }
 }
 
@@ -514,13 +642,11 @@ void noteOff(byte channel, byte pitch)
 //      Serial.print("Note OFF: ");
 //      Serial.println(pitch);
 
-    } else {
-
-      Serial.write(channel);
-      Serial.write(pitch);
-      Serial.write((byte)0x00);
-
     }
+
+    Serial1.write(channel);
+    Serial1.write(pitch);
+    Serial1.write((byte)0x00);
   }
 }
 
@@ -533,8 +659,8 @@ void controlChange(byte channel, byte control, byte value)
   // Ensure we're between channels 1 and 16 for a CC message
   if (channel >= 0xB0 && channel <= 0xBF)
   {
-    Serial.write(channel);
-    Serial.write(control);
-    Serial.write(value);
+    Serial1.write(channel);
+    Serial1.write(control);
+    Serial1.write(value);
   }
 }
