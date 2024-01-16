@@ -1,0 +1,39 @@
+#!/bin/bash
+start_social_sequencer () {
+
+	echo Starting...
+	pd -nogui -alsa -noadc -audiooutdev 3 -verbose -nomidiout -path /home/pi/SocialSequencer/pd-0.47-1/extra/ -open /home/pi/SocialSequencer/AudioTest.pd &
+	
+}
+
+echo
+echo Social Sequencer
+echo
+if [ "$1" == "start" ]; then
+	start_social_sequencer
+elif [ "$1" == "onboot" ]; then
+	# Read GPIO here
+	debug=false
+	if [ "$debug" = true ]; then
+		startx
+	else
+		start_social_sequencer
+	fi
+elif [ "$1" == "help" ]; then
+	echo Usage: socialsequencer command
+	echo
+	echo Available commands:
+	echo start - starts Social Sequencer
+	echo 
+	echo Examples:
+	echo socialsequencer start
+else
+	if [ "$1" == "" ]; then
+		echo Error: No command given.
+	else 
+		echo Error: Unknown command \'$1\'.
+	fi
+	echo
+	echo Try running ´socialsequencer help´ if you are obuolys and don´t know how it works
+fi
+echo
